@@ -1,0 +1,50 @@
+@startuml seq-search
+' Диаграмма последовательности «Поиск дубликатов» (SDD, представление 005-interaction-search)
+skinparam monochrome true
+skinparam shadowing false
+skinparam dpi 150
+skinparam defaultFontName Times New Roman
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign left
+hide footbox
+
+actor "Пользователь" as U
+participant "SearchPage /\nScanPage" as UI
+participant "ScanWorker\n(фоновый поток)" as SW
+participant "FileEnumerator" as FE
+participant "DuplicateFinder" as DF
+participant "HashService" as HS
+participant "HashCache" as HC
+
+U -> UI : выбрать папки, фильтры,\nнажать «Найти дубликаты»
+UI -> SW : start(папки, фильтры)\n(очередь сигналов)
+activate SW
+SW -> FE : listFiles(папки, фильтры)
+FE --> SW : список файлов,\nсписок пропущенных
+SW -> DF : groupBySize(файлы)
+DF --> SW : кандидаты (одинаковый размер)
+loop для каждого кандидата
+  SW -> HS : partialHash(файл, 64 КБ)
+end
+SW -> DF : groupByPartialHash()
+loop для каждого оставшегося файла
+  SW -> HC : find(путь, размер, дата)
+  alt хэш есть в кэше
+    HC --> SW : хэш
+  else хэша нет
+    SW -> HS : fullHash(файл, SHA-256 или MD5)\nчтение блоками по 1 МБ
+    HS --> SW : хэш
+    SW -> HC : put(путь, размер, дата, хэш)
+  end
+  SW -->> UI : progress(этап, %, файл)\nне чаще 10 раз в секунду
+  opt пользователь нажал «Пауза» или «Отмена»
+    UI -> SW : pause() / cancel() (флаг)
+  end
+end
+SW -> DF : groupByFullHash()
+DF --> SW : группы дубликатов
+SW -> HC : save()
+SW -->> UI : finished(группы, пропущенные)
+deactivate SW
+UI -> U : экран «Результаты»:\nгруппы и объём, который можно освободить
+@enduml

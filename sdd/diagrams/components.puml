@@ -1,0 +1,65 @@
+@startuml components
+' Компонентная диаграмма приложения «Двойник» (SDD, представление 002-composition)
+!pragma layout smetana
+skinparam monochrome true
+skinparam shadowing false
+skinparam dpi 150
+skinparam defaultFontName Times New Roman
+skinparam defaultFontSize 13
+skinparam componentStyle rectangle
+skinparam nodesep 25
+skinparam ranksep 45
+
+package "Интерфейс (Qt Widgets)" {
+  [MainWindow] as MW
+  [Страницы разделов: SearchPage, ScanPage,\nResultsPage, ComparePage, SettingsPage] as PAGES
+}
+
+package "Ядро (не зависит от интерфейса)" {
+  [ScanWorker\n(фоновый поток)] as SW
+  [AutoSelector] as AS
+  [ActionService] as ACT
+  [CsvExporter] as CSV
+  [SessionStore] as SES
+  [SettingsStore] as SET
+  [FileEnumerator] as FE
+  [DuplicateFinder] as DF
+  [FolderComparer] as FC
+  [Logger] as LOG
+  [HashService] as HS
+  [HashCache] as HC
+}
+
+package "Платформа (Windows)" {
+  [TrashAdapter] as TR
+  [ShellAdapter] as SH
+}
+
+database "Данные пользователя\n%LOCALAPPDATA%\\Dvoinik" as DATA
+node "Файловая система,\nКорзина, Проводник" as OS
+
+MW --> PAGES
+PAGES --> SW : запуск, пауза, отмена
+SW ..> PAGES : сигналы хода\nи результата
+PAGES --> AS
+PAGES --> ACT
+PAGES --> CSV
+PAGES --> SES
+PAGES --> SET
+PAGES --> SH
+SW --> FE
+SW --> DF
+SW --> FC
+DF --> HS
+FC --> HS
+HS --> HC
+ACT --> LOG
+ACT --> TR
+HC --> DATA
+SET --> DATA
+SES --> DATA
+LOG --> DATA
+FE --> OS
+TR --> OS
+SH --> OS
+@enduml
