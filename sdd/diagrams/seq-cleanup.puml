@@ -1,0 +1,48 @@
+@startuml seq-cleanup
+' Диаграмма последовательности «Очистка» (SDD, представление 006-interaction-cleanup)
+skinparam monochrome true
+skinparam shadowing false
+skinparam dpi 150
+skinparam defaultFontName Times New Roman
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign left
+hide footbox
+
+actor "Пользователь" as U
+participant "ResultsPage" as UI
+participant "ActionService" as ACT
+participant "TrashAdapter" as TR
+participant "Logger" as LOG
+
+U -> UI : отметить файлы (вручную\nили автовыбором), нажать «В корзину»
+UI -> ACT : checkGroups(группы)
+ACT --> UI : группы без оставляемой копии,\nфайлы из защищённых папок
+alt есть группа, где отмечены все копии
+  UI -> U : «Нужно оставить хотя бы одну копию»
+else проверка пройдена
+  UI -> ACT : trashAvailable(файлы)
+  ACT -> TR : isTrashAvailable(диск)
+  TR --> ACT : да / нет
+  opt корзина недоступна для части файлов
+    UI -> U : «Удалить навсегда», «Переместить в папку»\nили «Отмена»
+  end
+  UI -> U : подтверждение (количество, объём)
+  U -> UI : «Да»
+  UI -> ACT : moveToTrash(файлы)
+  loop для каждого файла
+    ACT -> ACT : файл существует, размер и дата\nне изменились с момента поиска
+    alt файл не изменился
+      ACT -> TR : moveToTrash(путь)
+      TR --> ACT : успех / ошибка
+    else файл изменился
+      ACT -> ACT : в список необработанных:\n«Файл изменился после поиска»
+    end
+    ACT -> LOG : write(дата, действие, путь, результат)
+  end
+  opt включено удаление пустых папок
+    ACT -> ACT : удалить опустевшие папки
+  end
+  ACT --> UI : итог (обработано, освобождено,\nнеобработанные с причиной)
+  UI -> U : итог действия
+end
+@enduml
